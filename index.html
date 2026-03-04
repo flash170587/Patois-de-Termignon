@@ -445,7 +445,7 @@
       color: var(--bleu); margin-bottom: 0.15rem;
     }
     .gram-details {
-      font-size: 0.78rem; color: var(--brun-light);
+      font-size: 0.93rem; color: var(--brun-light);
       font-style: italic; margin-bottom: 0.2rem;
     }
     .gram-trad {
@@ -653,7 +653,8 @@
       // Expressions : col A = titre section, col B = français, col C = patois
       const rawExpr = [];
       const linesE = text.trim().split('\n');
-      const startE = isHeader(linesE[0]) ? 1 : 0;
+      const firstColsE = splitCSV(linesE[0]);
+      const startE = (firstColsE[0]||'').trim() === '' ? 1 : 0;
       for (let i = startE; i < linesE.length; i++) {
         const colsE = splitCSV(linesE[i]);
         rawExpr.push({ a: (colsE[0]||'').trim(), b: (colsE[1]||'').trim(), c: (colsE[2]||'').trim() });
@@ -664,7 +665,9 @@
       // Mode d'emploi : col A=titre, B=Explication, C=Détails, D=Français, E=Patois
       const raw = [];
       const lines2 = text.trim().split('\n');
-      const start2 = isHeader(lines2[0]) ? 1 : 0;
+      // Ne sauter la première ligne que si col A est vide (vraie ligne d'en-tête sans titre de section)
+      const firstCols2 = splitCSV(lines2[0]);
+      const start2 = (firstCols2[0]||'').trim() === '' ? 1 : 0;
       for (let i = start2; i < lines2.length; i++) {
         const cols2 = splitCSV(lines2[i]);
         raw.push({
@@ -728,8 +731,12 @@
     const sections = [];
     let current = null;
     raw.forEach(row => {
-      if (row.a) {
-        current = { titre: row.a, lignes: [] };
+      if (row.a === '-') {
+        // Séparateur : espace visuel entre deux sections
+        sections.push({ titre: null, separateur: true, lignes: [] });
+        current = null;
+      } else if (row.a) {
+        current = { titre: row.a, separateur: false, lignes: [] };
         if (row.b || row.c) current.lignes.push({ fr: row.b, pa: row.c });
         sections.push(current);
       } else if (current && (row.b || row.c)) {
@@ -756,8 +763,12 @@
     const sections = [];
     let current = null;
     raw.forEach(row => {
-      if (row.a) {
-        current = { titre: row.a, lignes: [] };
+      if (row.a === '-') {
+        // Séparateur : section vide spéciale
+        sections.push({ titre: null, separateur: true, lignes: [] });
+        current = null;
+      } else if (row.a) {
+        current = { titre: row.a, separateur: false, lignes: [] };
         if (row.b || row.c || row.d || row.e)
           current.lignes.push({ explication: row.b, details: row.c, fr: row.d, pa: row.e });
         sections.push(current);
@@ -1009,6 +1020,7 @@
     }).join('');
 
     const sectionsHTML = expressions.map((section, idx) => {
+      if (section.separateur) return '<div style="height:0.8rem;"></div>';
       const open = openExpressions.has(idx);
       const lignes = section.lignes.map(l => {
         const src = direction==='fr' ? l.fr : l.pa;
@@ -1066,6 +1078,7 @@
       return;
     }
     zone.innerHTML = grammaire.map((section, idx) => {
+      if (section.separateur) return '<div style="height:0.8rem;"></div>';
       const open = openGrammaire.has(idx);
       const lignes = section.lignes.map(l => {
         const src = direction==='fr' ? l.fr : l.pa;
