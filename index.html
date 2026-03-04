@@ -437,6 +437,24 @@
       transform: translateY(-1px);
     }
     .btn-contact:active { transform: translateY(0); }
+
+    /* ── MODE D'EMPLOI (5 colonnes) ── */
+    .gram-row-content { flex: 1; padding: 0.1rem 0; }
+    .gram-explication {
+      font-size: 0.82rem; font-weight: 700;
+      color: var(--bleu); margin-bottom: 0.15rem;
+    }
+    .gram-details {
+      font-size: 0.78rem; color: var(--brun-light);
+      font-style: italic; margin-bottom: 0.2rem;
+    }
+    .gram-trad {
+      display: flex; align-items: center; gap: 0.5rem;
+      margin-top: 0.15rem;
+    }
+    .gram-trad .gram-src { font-weight: 700; font-size: 0.9rem; color: var(--brun); min-width: unset; }
+    .gram-trad .gram-tgt { font-size: 0.86rem; color: var(--brun-light); font-style: italic; }
+    .gram-trad .gram-arrow { color: var(--accent); font-size: 0.8rem; flex-shrink: 0; }
     /* ── EMPTY / LOADING ── */
     .empty-state {
       text-align: center; padding: 2.5rem 1rem; color: var(--brun-light);
@@ -497,7 +515,7 @@
     <button class="tab-btn"        id="tab-browse"       onclick="setTab('browse')">📖 Dictionnaire</button>
   </div>
   <div class="tabs-row">
-    <button class="tab-btn"        id="tab-grammaire"    onclick="setTab('grammaire')">📝 Grammaire</button>
+    <button class="tab-btn"        id="tab-grammaire"    onclick="setTab('grammaire')">📝 Mode d'emploi</button>
     <button class="tab-btn"        id="tab-expressions"  onclick="setTab('expressions')">💬 Vocab./Expr.</button>
     <button class="tab-btn"        id="tab-verbes"       onclick="setTab('verbes')">🔤 Verbes</button>
   </div>
@@ -643,15 +661,21 @@
       expressions = rawExpr.length ? buildSections(rawExpr) : demoExpr();
       onExprReady();
     } else {
-      // grammaire : col A = titre section, col B = texte français, col C = texte patois
+      // Mode d'emploi : col A=titre, B=Explication, C=Détails, D=Français, E=Patois
       const raw = [];
       const lines2 = text.trim().split('\n');
       const start2 = isHeader(lines2[0]) ? 1 : 0;
       for (let i = start2; i < lines2.length; i++) {
         const cols2 = splitCSV(lines2[i]);
-        raw.push({ a: (cols2[0]||'').trim(), b: (cols2[1]||'').trim(), c: (cols2[2]||'').trim() });
+        raw.push({
+          a: (cols2[0]||'').trim(),
+          b: (cols2[1]||'').trim(),
+          c: (cols2[2]||'').trim(),
+          d: (cols2[3]||'').trim(),
+          e: (cols2[4]||'').trim()
+        });
       }
-      grammaire = raw.length ? buildGrammaireSections(raw) : buildGrammaireSections(demoGramRaw());
+      grammaire = raw.length ? buildModeSections(raw) : buildModeSections(demoGramRaw());
       onGramReady();
     }
   }
@@ -718,21 +742,31 @@
   // Données brutes grammaire : col A = titre (non vide = nouvelle section), B = FR, C = patois
   function demoGramRaw() {
     return [
-      {a:'Les articles définis',  b:'le / la / les',          c:'lo / la / lé'},
-      {a:'',                      b:'le chien',               c:'lo tian'},
-      {a:'',                      b:'la maison',              c:'la mèizon'},
-      {a:'',                      b:'les enfants',            c:'lé anfans'},
-      {a:'Les articles indéfinis',b:'un / une / des',         c:'un / una / dé'},
-      {a:'',                      b:'un homme',               c:'un omè'},
-      {a:'',                      b:'une femme',              c:'una fena'},
-      {a:'',                      b:'des fleurs',             c:'dé fleurs'},
-      {a:'Les pronoms personnels', b:'je / tu / il / elle',   c:'dzè / tu / el / ela'},
-      {a:'',                      b:'nous / vous / ils',      c:'no / vo / el'},
+      {a:"Les articles définis",  b:"Article placé devant un nom", c:"Définit un nom précis", d:"le / la / les", e:"lo / la / lé"},
+      {a:"",                      b:"",                            c:"Exemple masculin",      d:"le chien",      e:"lo tian"},
+      {a:"",                      b:"",                            c:"Exemple féminin",       d:"la maison",     e:"la mèizon"},
+      {a:"Les pronoms personnels", b:"Remplace un nom de personne", c:"Sujet singulier",      d:"je / tu / il",  e:"dzè / tu / el"},
+      {a:"",                      b:"",                            c:"Sujet pluriel",         d:"nous / vous",   e:"no / vo"},
     ];
   }
 
-  // buildGrammaireSections utilise la fonction commune buildSections
-  function buildGrammaireSections(raw) { return buildSections(raw); }
+  // buildGrammaireSections / buildModeSections pour le Mode d'emploi (5 colonnes)
+  function buildGrammaireSections(raw) { return buildModeSections(raw); }
+  function buildModeSections(raw) {
+    const sections = [];
+    let current = null;
+    raw.forEach(row => {
+      if (row.a) {
+        current = { titre: row.a, lignes: [] };
+        if (row.b || row.c || row.d || row.e)
+          current.lignes.push({ explication: row.b, details: row.c, fr: row.d, pa: row.e });
+        sections.push(current);
+      } else if (current && (row.b || row.c || row.d || row.e)) {
+        current.lignes.push({ explication: row.b, details: row.c, fr: row.d, pa: row.e });
+      }
+    });
+    return sections;
+  }
 
   function onDicoReady() {
     updateStats();
@@ -758,8 +792,18 @@
 
   // ── CSV ──
   function isHeader(line) {
-    const l = line.toLowerCase();
-    return l.includes('français')||l.includes('french')||l.includes('patois')||l.includes('mot')||l.includes('expression');
+    // Détecte une vraie ligne d'en-tête uniquement si TOUTES les cellules
+    // sont du texte simple sans chiffres ni caractères patois spéciaux
+    const cols = splitCSV(line);
+    if (cols.length < 2) return false;
+    const specialChars = /[àâäéèêëîïôùûüÿæœÂÀÄÉÈÊËÎÏÔÙÛÜŸÆŒ0-9]/;
+    // C'est un en-tête si aucune cellule ne contient de caractères spéciaux
+    // ET que les cellules contiennent des mots clés typiques d'en-têtes
+    const headerWords = ['français','french','patois','mot','expression','titre','colonne','header','word','traduction','détail','explication'];
+    const allCells = cols.map(c => c.trim().toLowerCase());
+    const hasHeaderWord = allCells.some(c => headerWords.some(w => c.includes(w)));
+    const hasNoSpecial = allCells.every(c => !specialChars.test(c));
+    return hasHeaderWord && hasNoSpecial;
   }
   function splitCSV(line) {
     const out=[]; let cur='', inQ=false;
@@ -1023,14 +1067,22 @@
     }
     zone.innerHTML = grammaire.map((section, idx) => {
       const open = openGrammaire.has(idx);
-      const lignes = section.lignes.map((l, i) => {
+      const lignes = section.lignes.map(l => {
         const src = direction==='fr' ? l.fr : l.pa;
         const tgt = direction==='fr' ? l.pa : l.fr;
+        const expl = l.explication ? `<div class="gram-explication">${l.explication}</div>` : '';
+        const det  = l.details     ? `<div class="gram-details">${l.details}</div>` : '';
+        const hasTrad = src || tgt;
+        const trad = hasTrad ? `<div class="gram-trad">
+            <span class="gram-src">${src}</span>
+            <span class="gram-arrow">→</span>
+            <span class="gram-tgt">${tgt}</span>
+            <button class="btn-comment" onclick="openComment('${src} → ${tgt}')" title="Commenter">💬</button>
+          </div>` : '';
         return `<div class="gram-row">
-          <div class="gram-src">${src}</div>
-          <div class="gram-arrow">→</div>
-          <div class="gram-tgt">${tgt}</div>
-          <button class="btn-comment" onclick="openComment('${src} → ${tgt}')" title="Commenter">💬</button>
+          <div class="gram-row-content">
+            ${expl}${det}${trad}
+          </div>
         </div>`;
       }).join('');
       return `<div class="gram-group">
