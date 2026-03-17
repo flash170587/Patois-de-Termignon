@@ -459,7 +459,19 @@
 
     /* ── VERBES ── */
     .verbe-content { padding: 0.4rem 0 0.6rem; }
-    .verbe-sep { height: 0.65rem; }
+    .verbe-sep {
+      height: 0;
+      margin: 0.6rem 0.8rem;
+      border: none;
+      border-top: 2px solid #0065A3;
+      opacity: 0.25;
+    }
+    .verbe-hr {
+      margin: 0.5rem 0.8rem;
+      border: none;
+      border-top: 2px solid #0065A3;
+      opacity: 0.35;
+    }
     .verbe-row {
       display: flex; flex-wrap: nowrap;
       padding: 0.32rem 0.8rem; gap: 0.2rem;
@@ -1252,8 +1264,11 @@
       let rowsHTML = '';
       verbe.rows.forEach(function(row) {
         const colA = row[0], colB = row[1];
-        // Séparateur
-        if (colA === '-' || colB === '-') { rowsHTML += '<div class="verbe-sep"></div>'; return; }
+        // Séparateur : ligne bleue ou espace selon position
+        if (colA === '-' || colB === '-') {
+          rowsHTML += '<hr class="verbe-hr">';
+          return;
+        }
         // Ligne vide
         const vals = row.slice(1);
         if (vals.every(function(c){return !c;})) return;
