@@ -536,6 +536,8 @@
       cursor: pointer; text-decoration: underline;
       font-family: 'Lato', sans-serif;
     }
+
+    
     /* ── EMPTY / LOADING ── */
     .empty-state {
       text-align: center; padding: 2.5rem 1rem; color: var(--brun-light);
@@ -631,9 +633,7 @@
 <!-- ── VERBES ── -->
 <div id="verbes-zone" style="display:none; margin:0.5rem 1rem 2rem;"></div>
 
-<div id="contact-btn-zone">
-  <button class="btn-contact" onclick="window.open('https://docs.google.com/forms/d/e/1FAIpQLScNqgtajYNRAVQW_QKElzg7UqB7tNbuFculviZjBqKAmGQoxg/viewform?usp=pp_url', '_blank')">✉️ Contact</button>
-</div>
+
 <!-- ── EXERCICES ── -->
 <div id="exercices-zone" style="display:none; margin:0.8rem 1rem 2rem;"></div>
 
@@ -1348,12 +1348,38 @@
 
 
   // ── Exercices ──
-  let quizScore = 0;
-  let quizTotal = 0;
-  let quizCurrent = null;
-  let quizSource = 'all'; // 'all', 'dico', 'expr', 'verbes'
+  var quizScore = 0;
+  var quizTotal = 0;
+  var quizCurrent = null;
+  var quizSource = 'all';
+  var currentChoices = [];
 
-  // Pool enrichi pour les verbes : chaque entrée garde le contexte
+  function setQuizSource(s) {
+    quizSource = s;
+    quizScore = 0;
+    quizTotal = 0;
+    startExercice();
+  }
+
+  function renderQuizSourceSelector() {
+    var sources = ['all','dico','expr','verbes'];
+    var labels = {all:'🎯 Tout', dico:'📖 Dictionnaire', expr:'💬 Vocabulaire', verbes:'🔤 Verbes'};
+    var out = '<div style="display:flex;gap:0.4rem;margin-bottom:0.8rem;flex-wrap:wrap;">';
+    for (var i = 0; i < sources.length; i++) {
+      var s = sources[i];
+      var active = (quizSource === s);
+      var border = active ? '#0065A3' : '#d0dce8';
+      var bg = active ? '#0065A3' : '#ffffff';
+      var color = active ? '#fff' : '#4a6070';
+      var style = 'flex:1;padding:0.45rem 0.3rem;border:2px solid ' + border
+                + ';border-radius:8px;background:' + bg + ';color:' + color
+                + ';font-size:0.72rem;font-weight:700;cursor:pointer;font-family:Lato,sans-serif;';
+      out += '<button onclick="setQuizSource(this.dataset.s)" data-s="' + s + '" style="' + style + '">' + labels[s] + '</button>';
+    }
+    out += '</div>';
+    return out;
+  }
+
   function buildVerbPool() {
     var pool = [];
     verbes.forEach(function(verbe) {
@@ -1361,46 +1387,32 @@
       var pronounsFR = ['Je','Tu','Il','Nous','Vous','Ils'];
       var headerLabels = [];
       var headerDone = false;
-
       verbe.rows.forEach(function(row) {
         var b = row[1];
         if (b && b.toLowerCase().indexOf('pronom') !== -1) return;
-
-        // Headers infinitif/participe/impératif
         if (!headerDone && !b && row[2] && row[2].indexOf('*') !== -1) {
           headerLabels = [row[2], row[3], row[4]];
           return;
         }
-        // Traductions infinitif/participe/impératif
         if (!headerDone && !b && row[2] && headerLabels.length) {
           [row[2], row[3], row[4]].forEach(function(c, i) {
             if (!c || !headerLabels[i]) return;
             var label = headerLabels[i].replace(/\*/g, '');
-            pool.push({
-              question: direction==='fr' ? label+' de '+verbe.titre : c,
-              answer:   direction==='fr' ? c : label+' de '+verbe.titre,
-              source: 'Verbes',
-              verbe: verbe.titre, temps: label, pronom: label, conjug: c,
-              type: 'header'
-            });
+            pool.push({ question: direction==='fr' ? label+' de '+verbe.titre : c,
+                        answer: direction==='fr' ? c : label+' de '+verbe.titre,
+                        source:'Verbes', verbe:verbe.titre, temps:label, pronom:label, type:'header' });
           });
           headerDone = true;
           return;
         }
-
-        // Lignes de conjugaison
         if (b && b.charAt(0) === '*' && b.charAt(b.length-1) === '*' && b.length > 2) {
-          var temps = b.slice(1, -1);
+          var temps = b.slice(1,-1);
           [row[2],row[3],row[4],row[5],row[6],row[7]].forEach(function(c, i) {
             if (!c) return;
             var pronFR = pronounsFR[i] || '';
-            pool.push({
-              question: direction==='fr' ? pronFR+' - '+verbe.titre+' ('+temps+')' : c,
-              answer:   direction==='fr' ? c : pronFR+' - '+verbe.titre+' ('+temps+')',
-              source: 'Verbes',
-              verbe: verbe.titre, temps: temps, pronom: pronFR, conjug: c,
-              type: 'conjug'
-            });
+            pool.push({ question: direction==='fr' ? pronFR+' - '+verbe.titre+' ('+temps+')' : c,
+                        answer: direction==='fr' ? c : pronFR+' - '+verbe.titre+' ('+temps+')',
+                        source:'Verbes', verbe:verbe.titre, temps:temps, pronom:pronFR, type:'conjug' });
           });
         }
       });
@@ -1410,10 +1422,9 @@
 
   function buildQuizPool(source) {
     var pool = [];
-
     if (source === 'all' || source === 'dico') {
       dictionary.forEach(function(e) {
-        pool.push({ question: direction==='fr'?e.fr:e.pa, answer: direction==='fr'?e.pa:e.fr, source: 'Dictionnaire', type: 'dico' });
+        pool.push({ question:direction==='fr'?e.fr:e.pa, answer:direction==='fr'?e.pa:e.fr, source:'Dictionnaire', type:'dico' });
       });
     }
     if (source === 'all' || source === 'expr') {
@@ -1421,7 +1432,7 @@
         if (section.separateur) return;
         section.lignes.forEach(function(l) {
           if (l.fr && l.pa)
-            pool.push({ question: direction==='fr'?l.fr:l.pa, answer: direction==='fr'?l.pa:l.fr, source: 'Vocabulaire', type: 'expr' });
+            pool.push({ question:direction==='fr'?l.fr:l.pa, answer:direction==='fr'?l.pa:l.fr, source:'Vocabulaire', type:'expr' });
         });
       });
     }
@@ -1431,7 +1442,6 @@
     return pool;
   }
 
-  // Similarité entre deux chaînes (distance de Levenshtein simplifiée)
   function similarity(a, b) {
     if (!a || !b) return 0;
     a = a.toLowerCase(); b = b.toLowerCase();
@@ -1444,94 +1454,74 @@
 
   function getSmartWrongAnswers(pool, item) {
     var wrong = [];
-
-    // Pour les conjugaisons de verbes : distracteurs contextuels
     if (item.type === 'conjug') {
-      var verbPool = buildVerbPool().filter(function(e) { return e.type === 'conjug' && e.answer !== item.answer; });
-
+      var vp = buildVerbPool().filter(function(e) { return e.type==='conjug' && e.answer !== item.answer; });
       // 1. Même verbe, même pronom, autre temps
-      var sameVerbPronom = verbPool.filter(function(e) {
-        return e.verbe === item.verbe && e.pronom === item.pronom && e.temps !== item.temps;
-      });
-      sameVerbPronom.sort(function(){return Math.random()-0.5;});
-      if (sameVerbPronom.length) wrong.push(sameVerbPronom[0].answer);
-
-      // 2. Même temps, autre pronom, même verbe
-      var sameVerbTemps = verbPool.filter(function(e) {
-        return e.verbe === item.verbe && e.temps === item.temps && e.pronom !== item.pronom;
-      });
-      sameVerbTemps.sort(function(){return Math.random()-0.5;});
-      if (sameVerbTemps.length) wrong.push(sameVerbTemps[0].answer);
-
-      // 3. Autre verbe le plus similaire, même pronom, même temps
-      var autreVerbe = verbPool.filter(function(e) {
-        return e.verbe !== item.verbe && e.temps === item.temps && e.pronom === item.pronom;
-      });
-      autreVerbe.sort(function(a, b) {
-        return similarity(b.answer, item.answer) - similarity(a.answer, item.answer);
-      });
-      if (autreVerbe.length) wrong.push(autreVerbe[0].answer);
+      var w1 = vp.filter(function(e) { return e.verbe===item.verbe && e.pronom===item.pronom && e.temps!==item.temps; });
+      w1.sort(function(){return Math.random()-0.5;});
+      if (w1.length) wrong.push(w1[0].answer);
+      // 2. Même verbe, même temps, autre pronom
+      var w2 = vp.filter(function(e) { return e.verbe===item.verbe && e.temps===item.temps && e.pronom!==item.pronom && wrong.indexOf(e.answer)===-1; });
+      w2.sort(function(){return Math.random()-0.5;});
+      if (w2.length) wrong.push(w2[0].answer);
+      // 3. Autre verbe similaire, même pronom, même temps
+      var w3 = vp.filter(function(e) { return e.verbe!==item.verbe && e.temps===item.temps && e.pronom===item.pronom && wrong.indexOf(e.answer)===-1; });
+      w3.sort(function(a,b) { return similarity(b.answer,item.answer)-similarity(a.answer,item.answer); });
+      if (w3.length) wrong.push(w3[0].answer);
     }
-
-    // Compléter si pas assez avec des réponses similaires du pool général
+    // Compléter si pas assez
     if (wrong.length < 3) {
-      var others = pool.filter(function(e) {
-        return e.answer !== item.answer && wrong.indexOf(e.answer) === -1;
-      });
-      // Trier par similarité avec la bonne réponse
-      others.sort(function(a, b) {
-        return similarity(b.answer, item.answer) - similarity(a.answer, item.answer);
-      });
-      while (wrong.length < 3 && others.length) {
-        wrong.push(others.shift().answer);
-      }
+      var others = pool.filter(function(e) { return e.answer !== item.answer && wrong.indexOf(e.answer)===-1; });
+      others.sort(function(a,b) { return similarity(b.answer,item.answer)-similarity(a.answer,item.answer); });
+      while (wrong.length < 3 && others.length) wrong.push(others.shift().answer);
     }
-
-    // Dédoublonner
-    var seen = {}; var unique = [];
-    wrong.forEach(function(w) { if (!seen[w]) { seen[w]=true; unique.push(w); } });
-    return unique.slice(0, 3);
+    return wrong;
   }
-
-  var currentChoices = [];
 
   function startExercice() {
     var zone = document.getElementById('exercices-zone');
+    if (!zone) return;
     var pool = buildQuizPool(quizSource);
     if (pool.length < 4) {
-      zone.innerHTML = renderQuizSourceSelector() +
-        '<div class="empty-state"><div class="icon">⏳</div><p>Données insuffisantes.<br>Essayez une autre catégorie.</p></div>';
+      zone.innerHTML = renderQuizSourceSelector()
+        + '<div class="empty-state"><div class="icon">⏳</div><p>Données insuffisantes pour cette catégorie.</p></div>';
       return;
     }
     var item = pool[Math.floor(Math.random() * pool.length)];
     quizCurrent = item;
     var wrongs = getSmartWrongAnswers(pool, item);
-    currentChoices = [item.answer].concat(wrongs).sort(function(){return Math.random()-0.5;});
-    var dirLabel = direction === 'fr' ? 'Traduisez en Patois de Termignon' : 'Traduisez en Français';
-
+    // Construire 4 choix sans doublons
+    var choices = [item.answer];
+    wrongs.forEach(function(w) { if (w && choices.indexOf(w) === -1) choices.push(w); });
+    // Compléter si besoin
+    if (choices.length < 4) {
+      pool.filter(function(e) { return e.answer && choices.indexOf(e.answer) === -1; })
+          .sort(function(){return Math.random()-0.5;})
+          .slice(0, 4 - choices.length)
+          .forEach(function(e) { choices.push(e.answer); });
+    }
+    currentChoices = choices.sort(function(){return Math.random()-0.5;});
+    var dirLabel = direction==='fr' ? 'Traduisez en Patois de Termignon' : 'Traduisez en Français';
     var btns = '';
     for (var i = 0; i < currentChoices.length; i++) {
       btns += '<button class="quiz-btn" onclick="checkAnswer(this,' + i + ')">' + currentChoices[i] + '</button>';
     }
-
-    zone.innerHTML =
-      renderQuizSourceSelector() +
-      '<div class="quiz-score">✅ ' + quizScore + ' correct' + (quizScore>1?'s':'') + ' / ' + quizTotal + ' question' + (quizTotal>1?'s':'') + '</div>' +
-      '<div class="quiz-card">' +
-        '<div class="quiz-label">' + dirLabel + '</div>' +
-        '<div class="quiz-question">' + item.question + '</div>' +
-        '<div class="quiz-source">' + item.source + '</div>' +
-      '</div>' +
-      '<div class="quiz-choices">' + btns + '</div>' +
-      '<div class="quiz-next-msg" id="quiz-msg"></div>' +
-      '<button class="quiz-skip" onclick="startExercice()">Passer cette question →</button>';
+    zone.innerHTML = renderQuizSourceSelector()
+      + '<div class="quiz-score">✅ ' + quizScore + ' / ' + quizTotal + '</div>'
+      + '<div class="quiz-card">'
+        + '<div class="quiz-label">' + dirLabel + '</div>'
+        + '<div class="quiz-question">' + item.question + '</div>'
+        + '<div class="quiz-source">' + item.source + '</div>'
+      + '</div>'
+      + '<div class="quiz-choices">' + btns + '</div>'
+      + '<div class="quiz-next-msg" id="quiz-msg"></div>'
+      + '<button class="quiz-skip" onclick="startExercice()">Passer →</button>';
   }
-
 
   function checkAnswer(btn, idx) {
     var answer = currentChoices[idx];
     quizTotal++;
-    var correct = answer === quizCurrent.answer;
+    var correct = (answer === quizCurrent.answer);
     document.querySelectorAll('.quiz-btn').forEach(function(b) {
       b.disabled = true;
       if (b.textContent.trim() === quizCurrent.answer) b.classList.add('correct');
