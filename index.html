@@ -1375,22 +1375,42 @@
     if (source === 'all' || source === 'verbes') {
       verbes.forEach(function(verbe) {
         if (!verbe || verbe.titre === '-') return;
-        var pronounsPA = [];
         var pronounsFR = ['Je','Tu','Il','Nous','Vous','Ils'];
+        var headerLabels = [];
+        var headerDone = false;
+
         verbe.rows.forEach(function(row) {
           var b = row[1];
-          if (b && b.toLowerCase().includes('pronom pa')) {
-            pronounsPA = [row[2],row[3],row[4],row[5],row[6],row[7]];
+
+          // Ignorer toutes les lignes pronoms (français et patois)
+          if (b && b.toLowerCase().indexOf('pronom') !== -1) return;
+
+          // Ligne headers : col B vide, col C = *Infinitif*, col D = *Participe passé*, col E = *Impératif*
+          if (!headerDone && !b && row[2] && row[2].indexOf('*') !== -1) {
+            headerLabels = [row[2], row[3], row[4]];
+            return;
           }
-          if (b && b.startsWith('*') && b.endsWith('*') && b.length > 2) {
-            var temps = b.slice(1,-1);
+
+          // Ligne traductions infinitif/participe/impératif : col B vide, col C-E = traductions
+          if (!headerDone && !b && row[2] && headerLabels.length) {
+            [row[2], row[3], row[4]].forEach(function(c, i) {
+              if (!c || !headerLabels[i]) return;
+              var label = headerLabels[i].replace(/\*/g, '');
+              var fr = label + ' de ' + verbe.titre;
+              pool.push({ question: direction==='fr'?fr:c, answer: direction==='fr'?c:fr, source: 'Verbes' });
+            });
+            headerDone = true;
+            return;
+          }
+
+          // Lignes de conjugaison : col B = *Temps*
+          if (b && b.charAt(0) === '*' && b.charAt(b.length-1) === '*' && b.length > 2) {
+            var temps = b.slice(1, -1);
             [row[2],row[3],row[4],row[5],row[6],row[7]].forEach(function(c, i) {
               if (!c) return;
-              var pronFR = pronounsFR[i]||'';
-              var pronPA = pronounsPA[i]||'';
+              var pronFR = pronounsFR[i] || '';
               var fr = pronFR + ' - ' + verbe.titre + ' (' + temps + ')';
-              var pa = c; // La conjugaison seule, sans le pronom patois devant
-              pool.push({ question: direction==='fr'?fr:pa, answer: direction==='fr'?pa:fr, source: 'Verbes' });
+              pool.push({ question: direction==='fr'?fr:c, answer: direction==='fr'?c:fr, source: 'Verbes' });
             });
           }
         });
