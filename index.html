@@ -952,6 +952,11 @@
 
   // ── Tabs ──
   function setTab(tab) {
+    // Tracker le temps passé dans l'onglet précédent
+    trackTabTime(currentTabForAnalytics);
+    currentTabForAnalytics = tab;
+    // Tracker l'ouverture du nouvel onglet
+    trackEvent('ouverture_onglet', { onglet: tab });
     currentTab = tab;
     ['introduction','search','browse','grammaire','expressions','verbes','exercices'].forEach(t => {
       const el = document.getElementById('tab-'+t);
@@ -971,8 +976,16 @@
   }
 
   // ── Recherche dictionnaire ──
+  var searchTimer = null;
   function doSearch() {
     const q   = document.getElementById('search-input').value.trim().toLowerCase();
+    // Tracker la recherche après 800ms sans frappe
+    if (searchTimer) clearTimeout(searchTimer);
+    if (q.length >= 2) {
+      searchTimer = setTimeout(function() {
+        trackEvent('recherche', { terme: q, direction: direction });
+      }, 800);
+    }
     const box = document.getElementById('results');
     const cnt = document.getElementById('result-count');
     if (!dictionary.length) return;
@@ -1530,15 +1543,52 @@
     if (correct) {
       btn.classList.add('correct');
       quizScore++;
+      trackEvent('exercice_reponse', {
+        resultat: 'correct',
+        source: quizCurrent.source,
+        question: quizCurrent.question
+      });
       document.getElementById('quiz-msg').textContent = '✅ Bravo ! Question suivante dans 2 secondes…';
       setTimeout(startExercice, 2000);
     } else {
       btn.classList.add('wrong');
+      trackEvent('exercice_reponse', {
+        resultat: 'incorrect',
+        source: quizCurrent.source,
+        question: quizCurrent.question
+      });
       document.getElementById('quiz-msg').textContent = '❌ Réponse correcte : ' + quizCurrent.answer;
     }
   }
 
-    function setStatus(msg, cls) {
+  
+  // ── Google Analytics Events ──
+  var tabStartTime = Date.now();
+  var currentTabForAnalytics = 'introduction';
+
+  function trackEvent(eventName, params) {
+    if (typeof gtag !== 'undefined') {
+      gtag('event', eventName, params);
+    }
+  }
+
+  function trackTabTime(leavingTab) {
+    var timeSpent = Math.round((Date.now() - tabStartTime) / 1000);
+    if (timeSpent > 2) { // Ignorer les clics accidentels < 2 secondes
+      trackEvent('temps_onglet', {
+        onglet: leavingTab,
+        secondes: timeSpent
+      });
+    }
+    tabStartTime = Date.now();
+  }
+
+
+  // Tracker le temps passé dans l'onglet courant quand on quitte la page
+  window.addEventListener('beforeunload', function() {
+    trackTabTime(currentTabForAnalytics);
+  });
+  function setStatus(msg, cls) {
     const el=document.getElementById('load-status');
     el.textContent=msg; el.className=cls;
   }
